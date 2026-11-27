@@ -5,13 +5,16 @@ Pencatat pengeluaran bulanan sederhana dalam satu file HTML. Tanpa server, tanpa
 ## Fitur
 
 - Catat pengeluaran: tanggal, kategori, keterangan, dan jumlah
-- Isi pendapatan bulanan secara manual (tersimpan terpisah untuk tiap bulan)
+- Isi pendapatan per periode gajian secara manual (tersimpan terpisah untuk tiap periode)
 - Lihat total pengeluaran, sisa uang, dan persentase pendapatan yang sudah terpakai
 - Ringkasan pengeluaran per kategori
 - Saring tabel per kategori: ketuk salah satu kategori (Makan, Belanja, dll.) untuk melihat satu kategori saja, lalu ketuk lagi atau pilih Semua untuk kembali
-- Pindah antar bulan dengan pemilih bulan
-- Hapus satu pengeluaran, atau hapus semua data pada bulan yang dipilih
-- Unduh data bulan aktif sebagai file CSV
+- Periode dihitung dari tanggal mulai yang diatur tiap bulan, misalnya tanggal gajian, sampai tanggal sebelum mulai periode berikutnya
+- Atur tanggal mulai lewat tombol **Tutup buku** (1-28). Isi 1 untuk bulan kalender biasa. Bawaan: 25
+- Pindah periode lewat **Sebelumnya** / **Berikutnya** di dalam **Lihat data tren**
+- Daftar transaksi 15 per halaman; ubah lewat **Ubah**, batalkan lewat **Batal edit**, atau urungkan aksi terakhir lewat **Undo**
+- Hapus satu pengeluaran, atau hapus semua data pada periode yang dipilih
+- Unduh data periode aktif sebagai file CSV
 - Sinkron antar HP (misalnya HP pasangan) lewat Google Sheets, dilindungi PIN
 - Tetap bisa mencatat saat offline; perubahan dikirim otomatis begitu ada sinyal
 - Ganti tampilan lewat tombol Tampilan di bagian atas halaman: mode Otomatis/Terang/Gelap dan 12 warna aksen pastel ala Material (pilihan tersimpan di perangkat)
@@ -26,7 +29,7 @@ Pencatat pengeluaran bulanan sederhana dalam satu file HTML. Tanpa server, tanpa
 
 Untuk memperbarui, cukup ganti `index.html` di repo dengan versi terbaru lalu commit.
 
-Bisa juga dijalankan lokal: buka `index.html` langsung di browser.
+Bisa juga dijalankan lokal: buka `dashboard.html` langsung di browser. Untuk GitHub Pages, salin isi `dashboard.html` ke `index.html` di repo; berkas `index.html` di folder proyek ini sengaja dibiarkan apa adanya.
 
 ## Mode offline
 
@@ -46,15 +49,17 @@ File yang harus ada di repo (semuanya di folder yang sama):
 | `manifest.webmanifest` | Info aplikasi untuk fitur pasang ke layar utama |
 | `icon-192.png`, `icon-512.png` | Ikon aplikasi |
 
-Kalau kamu mengubah `index.html` dan perubahan belum muncul, naikkan angka versi pada `const CACHE = 'pengeluaran-v1'` di `sw.js` (misalnya jadi `v2`) agar cache lama diganti.
+Kalau kamu mengubah `index.html` dan perubahan belum muncul, naikkan angka versi pada `const CACHE = 'pengeluaran-v9'` di `sw.js` agar cache lama diganti.
 
 ## Cara pakai
 
-1. Pilih bulan di pojok kanan atas.
-2. Isi kolom **Pendapatan** dengan pemasukan bulan itu. Nilainya tersimpan otomatis.
-3. Isi form pengeluaran lalu klik **Tambah**.
+1. Klik **Tutup buku**, isi tanggal mulai periode (1-28), lalu **Simpan**. Isi 1 untuk bulan kalender biasa.
+2. Isi kolom **Pendapatan** dengan pemasukan periode itu. Nilainya tersimpan otomatis.
+3. Isi form pengeluaran lalu klik **Tambah**. Klik **Ubah** pada baris untuk mengedit, lalu **Simpan perubahan**.
 4. Pantau kartu **Pengeluaran** dan **Sisa**. Angka sisa berubah merah kalau pengeluaran melebihi pendapatan.
-5. Klik **Unduh CSV** untuk menyimpan salinan data bulan itu.
+5. Buka **Lihat data tren** untuk pindah periode dengan **Sebelumnya** / **Berikutnya**.
+6. Klik **Undo** untuk membatalkan aksi terakhir.
+7. Klik **Unduh CSV** untuk menyimpan salinan data periode itu.
 
 ## Format CSV
 
@@ -88,19 +93,24 @@ Cara kerja:
 
 - Setiap perubahan langsung tampil, lalu dikirim ke Sheets. Kalau tidak ada sinyal, perubahan menunggu di antrian dan dikirim otomatis saat online lagi. Status terlihat di bagian atas halaman.
 - Halaman memeriksa data terbaru saat dibuka, saat kembali online, dan tiap 30 detik selama terbuka.
-- Data bisa dilihat dan dicadangkan langsung di spreadsheet (sheet `Pengeluaran` dan `Pendapatan`).
+- Spreadsheet dirapikan otomatis: header berwarna, format Rp, data terurut menurut tanggal, kolom ID disembunyikan, dan ada filter per kategori/tanggal.
+- Sheet `Ringkasan` (tab pertama) berisi periode, rentang tanggal, pendapatan, pengeluaran, sisa, persen terpakai, dan total per kategori. Nilainya dihitung ulang otomatis setiap ada perubahan dari halaman web.
+- Tanggal mulai periode tersimpan di sheet `Pengaturan` sebagai baris `tutup`.
+- Sheet `Pengeluaran` dan `Pendapatan` tetap bisa dilihat dan dicadangkan langsung. Setelah memperbarui `Code.gs`, jalankan fungsi `rapikanSekarang` sekali dari editor Apps Script agar spreadsheet yang sudah ada ikut dirapikan.
 - Kalau `Code.gs` diubah, buat deployment baru (**Deploy → Manage deployments → Edit → New version**) agar perubahan berlaku.
 
 Keamanan: URL dan isi halaman bersifat publik, jadi PIN-lah yang melindungi data. PIN dikirim lewat HTTPS dan diperiksa di server. Pakai PIN yang tidak mudah ditebak, dan jangan membagikan URL beserta PIN-nya ke orang lain.
 
 ## Penyimpanan data
 
-Data disimpan di **localStorage** browser kamu, dengan dua kunci:
+Data disimpan di **localStorage** browser kamu, dengan kunci:
 
 | Kunci | Isi |
 | --- | --- |
 | `pengeluaran-v1` | Daftar semua pengeluaran |
-| `pendapatan-v1` | Pendapatan per bulan |
+| `pendapatan-v1` | Pendapatan per kunci periode `YYYY-MM` |
+| `tutup-v1` | Tanggal mulai tiap periode (1-28) |
+| `antrian-v1` | Perubahan yang menunggu dikirim |
 
 Yang perlu diketahui:
 
@@ -111,7 +121,7 @@ Yang perlu diketahui:
 
 ## Kustomisasi
 
-Semua ada di `index.html`:
+Semua ada di `dashboard.html` (halaman yang dikembangkan; `index.html` sengaja tidak diubah):
 
 - **Kategori**: ubah daftar `<option>` pada elemen `<select id="kat">`.
 - **Warna**: ubah variabel CSS di bagian `:root` (mode terang) dan `@media (prefers-color-scheme: dark)` (mode gelap).
@@ -119,6 +129,7 @@ Semua ada di `index.html`:
 
 ## Batasan
 
-- Kalau dua orang mengubah pendapatan bulan yang sama, perubahan yang masuk ke server terakhir yang berlaku.
-- Pendapatan hanya satu angka per bulan, belum mendukung beberapa sumber pemasukan.
-- Pengeluaran belum bisa diedit. Hapus lalu tambahkan ulang.
+- Kalau dua orang mengubah pendapatan periode yang sama, perubahan yang masuk ke server terakhir yang berlaku.
+- Pendapatan hanya satu angka per periode, belum mendukung beberapa sumber pemasukan.
+- Undo hanya berlaku untuk satu aksi terakhir dan hilang saat halaman dimuat ulang.
+- Tanggal mulai periode dibatasi 1-28 agar tiap bulan punya tanggal itu. Isi 1 untuk bulan kalender biasa.

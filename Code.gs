@@ -6,6 +6,8 @@ const WARNA = '#0f6b57'; // warna header spreadsheet (hijau, sama dengan tampila
 const RP = '"Rp "#,##0;[Red]-"Rp "#,##0';
 const KEPALA_P = ['ID', 'Tanggal', 'Kategori', 'Keterangan', 'Jumlah'];
 const KEPALA_I = ['Bulan', 'Pendapatan'];
+const KEPALA_G = ['Pengaturan', 'Nilai'];
+const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 function doGet() {
   return ContentService.createTextOutput('Backend pengeluaran aktif.');
@@ -30,7 +32,16 @@ function doPost(e) {
       } else if (op.t === 'del') {
         st.data = st.data.filter(d => d.id !== Number(op.id));
       } else if (op.t === 'delbulan') {
-        st.data = st.data.filter(d => !d.tgl.startsWith(String(op.bulan)));
+        const g = Number(op.g) || 1;
+        st.data = st.data.filter(d => periode_(d.tgl, g) !== String(op.bulan));
+      } else if (op.t === 'edit' || op.t === 'upd') { // ubah satu pengeluaran (diabaikan kalau sudah dihapus dari HP lain)
+        const id = Number(op.e.id);
+        const i = st.data.findIndex(d => d.id === id);
+        if (i >= 0) st.data[i] = { id: id, tgl: String(op.e.tgl), kat: String(op.e.kat), ket: String(op.e.ket), jml: Number(op.e.jml) };
+      } else if (op.t === 'tutup') { // tanggal mulai periode (tanggal gajian), 1-28
+        st.tutup = Math.min(28, Math.max(1, Math.floor(Number(op.v)) || 1));
+      } else if (op.t === 'tutupbila') { // isi hanya jika belum pernah diatur
+        if (st.tutup === undefined) st.tutup = Math.min(28, Math.max(1, Math.floor(Number(op.v)) || 1));
       } else if (op.t === 'inc') {
         const j = Number(op.jml);
         if (j > 0) st.pemasukan[String(op.bulan)] = j; else delete st.pemasukan[String(op.bulan)];
@@ -39,7 +50,7 @@ function doPost(e) {
       }
     });
     if (ops.length) tulis_(st);
-    return keluar_({ ok: true, data: st.data, pemasukan: st.pemasukan });
+    return keluar_({ ok: true, data: st.data, pemasukan: st.pemasukan, tutup: st.tutup });
   } catch (err) {
     return keluar_({ ok: false, error: String(err) });
   } finally {
@@ -75,7 +86,11 @@ function ambil_() {
   si.getDataRange().getValues().slice(1).forEach(r => {
     if (r[0] !== '') pemasukan[String(r[0])] = Number(r[1]);
   });
-  return { data: data, pemasukan: pemasukan };
+  let tutup;
+  sheet_('Pengaturan', KEPALA_G).getDataRange().getValues().slice(1).forEach(r => {
+    if (String(r[0]) === 'tutup') tutup = Number(r[1]);
+  });
+  return { data: data, pemasukan: pemasukan, tutup: tutup };
 }
 
 function tulis_(st) {
@@ -85,11 +100,12 @@ function tulis_(st) {
     st.data.map(d => [d.id, d.tgl, d.kat, d.ket, d.jml]), 5, [2, 3, 4]);
   isi_(sheet_('Pendapatan', KEPALA_I),
     Object.keys(st.pemasukan).sort().map(b => [b, st.pemasukan[b]]), 2, [1]);
+  isi_(sheet_('Pengaturan', KEPALA_G), st.tutup ? [['tutup', st.tutup]] : [], 2, [1]);
   ringkasan_(st);
 
   // Gaya (warna header, lebar kolom, filter) cukup diterapkan sekali agar sinkron tetap cepat
   const p = PropertiesService.getScriptProperties();
-  if (p.getProperty('rapi') !== 'v1') { rapikan_(); p.setProperty('rapi', 'v1'); }
+  if (p.getProperty('rapi') !== 'v2') { rapikan_(); p.setProperty('rapi', 'v2'); }
 }
 
 // Kolom teks diformat "teks biasa" agar tanggal/bulan tidak diubah Sheets jadi tanggal otomatis.
@@ -101,17 +117,18 @@ function isi_(s, rows, jumlahKolom, kolomTeks) {
   s.getRange(2, 1, rows.length, jumlahKolom).setValues(rows);
 }
 
-// Sheet "Ringkasan": total per bulan dan per kategori.
+// Sheet "Ringkasan": total per periode (bulan biasa atau periode gajian) dan per kategori.
 // Nilainya dihitung ulang di skrip setiap ada perubahan (bukan rumus), supaya tidak
 // bergantung pada pengaturan bahasa/wilayah spreadsheet.
 function ringkasan_(st) {
+  const g = st.tutup || 1;
   const rk = sheet_('Ringkasan', ['Bulan']);
   const bulan = {};
-  st.data.forEach(d => { bulan[d.tgl.slice(0, 7)] = 1; });
+  st.data.forEach(d => { bulan[periode_(d.tgl, g)] = 1; });
   Object.keys(st.pemasukan).forEach(b => { bulan[b] = 1; });
-  const bl = Object.keys(bulan).sort().reverse(); // bulan terbaru di atas
+  const bl = Object.keys(bulan).sort().reverse(); // periode terbaru di atas
   const kat = Array.from(new Set(st.data.map(d => d.kat))).sort();
-  const kepala = ['Bulan', 'Pendapatan', 'Pengeluaran', 'Sisa', '% terpakai'].concat(kat);
+  const kepala = ['Periode', 'Rentang tanggal', 'Pendapatan', 'Pengeluaran', 'Sisa', '% terpakai'].concat(kat);
   const n = kepala.length;
 
   rk.getBandings().forEach(b => b.remove());
@@ -121,26 +138,43 @@ function ringkasan_(st) {
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
   rk.setRowHeight(1, 32);
   rk.setFrozenRows(1);
-  rk.setColumnWidth(1, 100);
-  for (let c = 2; c <= n; c++) rk.setColumnWidth(c, 130);
+  rk.setColumnWidth(1, 90);
+  rk.setColumnWidth(2, 190);
+  for (let c = 3; c <= n; c++) rk.setColumnWidth(c, 130);
   if (!bl.length) return;
 
   const jumlah = arr => arr.reduce((t, d) => t + d.jml, 0);
   const rows = bl.map(b => {
-    const dat = st.data.filter(d => d.tgl.startsWith(b));
+    const dat = st.data.filter(d => periode_(d.tgl, g) === b);
     const keluar = jumlah(dat);
     const masuk = st.pemasukan[b] || 0;
-    return [b, masuk, keluar, masuk - keluar, masuk > 0 ? keluar / masuk : '']
+    return [b, rentang_(b, g), masuk, keluar, masuk - keluar, masuk > 0 ? keluar / masuk : '']
       .concat(kat.map(k => jumlah(dat.filter(d => d.kat === k))));
   });
-  rk.getRange(2, 1, bl.length, 1).setNumberFormat('@');
+  rk.getRange(2, 1, bl.length, 2).setNumberFormat('@');
   rk.getRange(2, 1, bl.length, n).setValues(rows);
-  rk.getRange(2, 2, bl.length, 3).setNumberFormat(RP).setHorizontalAlignment('right');
-  rk.getRange(2, 5, bl.length, 1).setNumberFormat('0%').setHorizontalAlignment('right');
-  if (kat.length) rk.getRange(2, 6, bl.length, kat.length).setNumberFormat(RP).setHorizontalAlignment('right');
+  rk.getRange(2, 3, bl.length, 3).setNumberFormat(RP).setHorizontalAlignment('right');
+  rk.getRange(2, 6, bl.length, 1).setNumberFormat('0%').setHorizontalAlignment('right');
+  if (kat.length) rk.getRange(2, 7, bl.length, kat.length).setNumberFormat(RP).setHorizontalAlignment('right');
   rk.getRange(1, 1, bl.length + 1, n)
     .applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, true, false)
     .setHeaderRowColor(WARNA).setFirstRowColor('#ffffff').setSecondRowColor('#eef4f1');
+}
+
+// Periode sebuah tanggal. g = tanggal mulai periode (1 = bulan kalender biasa).
+// Contoh g=25: 2026-11-24 -> '2026-10', 2026-11-25 -> '2026-11'.
+function periode_(tgl, g) {
+  let y = Number(tgl.slice(0, 4)), m = Number(tgl.slice(5, 7));
+  const d = Number(tgl.slice(8, 10));
+  if (d < g) { m--; if (m === 0) { m = 12; y--; } }
+  return y + '-' + (m < 10 ? '0' : '') + m;
+}
+
+function rentang_(key, g) {
+  const y = Number(key.slice(0, 4)), m = Number(key.slice(5, 7));
+  if (g === 1) return BLN[m - 1] + ' ' + y;
+  const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+  return g + ' ' + BLN[m - 1] + (y !== ny ? ' ' + y : '') + ' – ' + (g - 1) + ' ' + BLN[nm - 1] + ' ' + ny;
 }
 
 // Setiap langkah gaya dicoba sendiri-sendiri: kalau satu gagal (misalnya karena fitur
@@ -180,6 +214,9 @@ function rapikan_() {
 
   gaya_(si, KEPALA_I, [110, 150]);
   coba_(() => si.getRange(2, 2, si.getMaxRows() - 1, 1).setNumberFormat(RP).setHorizontalAlignment('right'));
+
+  const sg = sheet_('Pengaturan', KEPALA_G);
+  gaya_(sg, KEPALA_G, [140, 100]);
 
   // Ringkasan jadi tab pertama
   coba_(() => { ss.setActiveSheet(sheet_('Ringkasan', ['Bulan'])); ss.moveActiveSheet(1); });

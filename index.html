@@ -129,7 +129,7 @@ dialog{border:1px solid var(--line);border-radius:8px;background:var(--card);col
 dialog::backdrop{background:rgba(0,0,0,.5)}
 dialog h2{margin:0 0 4px;font-size:1.05rem;font-weight:700}
 dialog p{margin:0;color:var(--mute);font-size:.85rem}
-#fsync,#ftema{display:grid;gap:12px}
+#fsync,#ftema,#ftutup{display:grid;gap:12px}
 .aksi{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 
 /* Pilihan tema */
@@ -142,6 +142,10 @@ dialog p{margin:0;color:var(--mute);font-size:.85rem}
 .sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--acc)}
 .sw[aria-pressed="true"] svg{opacity:1}
 .nama-warna{text-align:center;font-size:.85rem;color:var(--mute);margin-top:-4px}
+.undo{position:fixed;right:16px;bottom:16px;z-index:10;display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:.85rem}
+.undo[hidden]{display:none}
+.undo button{padding:6px 10px;font-size:.8rem}
+.undo .ket{margin:0}
 @media(max-width:900px){.ringkas{grid-template-columns:repeat(2,minmax(0,1fr))}.charts{grid-template-columns:1fr}}
 @media(max-width:480px){.ringkas{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -187,10 +191,11 @@ dialog p{margin:0;color:var(--mute);font-size:.85rem}
 </head>
 <body>
 <main>
-  <h1>Pengeluaran bulanan</h1>
+  <h1>Pengeluaran per periode gajian</h1>
   <div class="sync">
     <div class="bulan-nama" id="bulanLabel"></div>
     <div class="tools">
+      <button class="ghost" id="btnTutup" type="button">Tutup buku</button>
       <button class="ghost" id="btnTema" type="button">◐ Tampilan</button>
       <div class="sinkron-wrap">
         <span class="sub" id="status"></span>
@@ -203,7 +208,7 @@ dialog p{margin:0;color:var(--mute);font-size:.85rem}
     <div>
       <label for="masuk">Pendapatan (Rp)</label>
       <input type="number" id="masuk" min="0" step="any" inputmode="numeric" placeholder="Isi manual">
-      <div class="ket pos" id="pendapatanKet">Sumber dana bulan ini</div>
+      <div class="ket pos" id="pendapatanKet">Sumber dana periode ini</div>
     </div>
     <div>
       <div class="lbl">Pengeluaran</div>
@@ -225,19 +230,19 @@ dialog p{margin:0;color:var(--mute);font-size:.85rem}
 
   <div class="charts">
     <section class="panel" aria-labelledby="trenJudul">
-      <h2 id="trenJudul">Pendapatan vs pengeluaran · 6 bulan</h2>
+      <h2 id="trenJudul">Pendapatan vs pengeluaran · 6 periode</h2>
       <div class="legend" aria-hidden="true"><span><i class="mas"></i>Pendapatan</span><span><i class="kel"></i>Pengeluaran</span></div>
       <svg class="chart" id="tren" viewBox="0 0 600 190" role="img" aria-labelledby="trenJudul trenDesc">
-        <desc id="trenDesc">Perbandingan pendapatan dan pengeluaran enam bulan terakhir.</desc>
+        <desc id="trenDesc">Perbandingan pendapatan dan pengeluaran enam periode gajian terakhir.</desc>
       </svg>
       <details>
         <summary>Lihat data tren</summary>
         <div class="nav-bulan">
-          <button type="button" class="ghost" id="bulanSebelum" aria-label="Bulan sebelumnya">‹ Sebelumnya</button>
-          <input type="month" id="bulan" aria-label="Bulan yang ditampilkan">
-          <button type="button" class="ghost" id="bulanDepan" aria-label="Bulan berikutnya">Berikutnya ›</button>
+          <button type="button" class="ghost" id="bulanSebelum" aria-label="Periode sebelumnya">‹ Sebelumnya</button>
+          <input type="month" id="bulan" aria-label="Periode yang ditampilkan">
+          <button type="button" class="ghost" id="bulanDepan" aria-label="Periode berikutnya">Berikutnya ›</button>
         </div>
-        <div class="scroll"><table><thead><tr><th>Bulan</th><th class="num">Pendapatan</th><th class="num">Pengeluaran</th></tr></thead><tbody id="trenData"></tbody></table></div>
+        <div class="scroll"><table><thead><tr><th>Periode</th><th class="num">Pendapatan</th><th class="num">Pengeluaran</th></tr></thead><tbody id="trenData"></tbody></table></div>
       </details>
     </section>
     <section class="panel" aria-labelledby="katJudul">
@@ -255,7 +260,8 @@ dialog p{margin:0;color:var(--mute);font-size:.85rem}
       </select></div>
     <div class="wide"><label for="ket">Keterangan</label><input id="ket" placeholder="Contoh: makan siang" required></div>
     <div><label for="jml">Jumlah (Rp)</label><input type="number" id="jml" min="0" step="any" inputmode="numeric" required></div>
-    <button class="primary" type="submit">Tambah</button>
+    <button class="primary" id="btnTambah" type="submit">Tambah</button>
+    <button class="ghost" id="batalEdit" type="button" hidden>Batal edit</button>
   </form>
 
   <div class="cats" id="cats"></div>
@@ -272,9 +278,24 @@ dialog p{margin:0;color:var(--mute);font-size:.85rem}
 
   <div class="foot">
     <button class="ghost" id="csv" type="button">Unduh CSV</button>
-    <button class="ghost danger" id="hapus" type="button">Hapus semua data bulan ini</button>
+    <button class="ghost danger" id="hapus" type="button">Hapus semua data periode ini</button>
   </div>
 </main>
+
+<dialog id="dtutup">
+  <form id="ftutup" method="dialog">
+    <div>
+      <h2>Tutup buku</h2>
+      <p>Periode baru dimulai tiap tanggal ini, misalnya tanggal gajian. Isi 1 untuk bulan kalender biasa.</p>
+    </div>
+    <div><label for="gTgl">Periode mulai tiap tanggal (1-28)</label><input type="number" id="gTgl" min="1" max="28" inputmode="numeric" required></div>
+    <div class="ket" id="contohPeriode"></div>
+    <div class="aksi">
+      <button class="ghost" value="batal" formnovalidate>Batal</button>
+      <button class="primary" value="simpan">Simpan</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="dtema">
   <form id="ftema" method="dialog">
@@ -309,21 +330,73 @@ dialog p{margin:0;color:var(--mute);font-size:.85rem}
   </form>
 </dialog>
 
+<div class="undo" id="undo" role="status" aria-live="polite" hidden>
+  <span class="ket" id="undoPesan"></span>
+  <button class="primary" id="undoBtn" type="button">Undo</button>
+  <button class="ghost" id="undoTutup" type="button" aria-label="Tutup notifikasi">×</button>
+</div>
+
 <script>
 const KEY = 'pengeluaran-v1';
 const rp = n => new Intl.NumberFormat('id-ID', {style:'currency', currency:'IDR', maximumFractionDigits:0}).format(n);
 const $ = id => document.getElementById(id);
 let data = [];
 try { data = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { data = []; }
-const simpan = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); localStorage.setItem(KEY2, JSON.stringify(pemasukan)); localStorage.setItem(KEYQ, JSON.stringify(antrian)); } catch (e) {} };
+const simpan = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); localStorage.setItem(KEY2, JSON.stringify(pemasukan)); localStorage.setItem(KEYQ, JSON.stringify(antrian)); localStorage.setItem(KEYT, JSON.stringify(tutup)); } catch (e) {} };
 
 const KEY2 = 'pendapatan-v1';
 let pemasukan = {};
 try { pemasukan = JSON.parse(localStorage.getItem(KEY2)) || {}; } catch (e) { pemasukan = {}; }
 
-const KEYQ = 'antrian-v1', KEYC = 'sync-cfg-v1';
+const KEYQ = 'antrian-v1', KEYC = 'sync-cfg-v1', KEYT = 'tutup-v1';
 const baca = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
 let antrian = baca(KEYQ, []), cfg = baca(KEYC, {});
+
+// Tutup buku = tanggal mulai tiap periode (1-28). 25 = gajian tiap tanggal 25.
+let tutup = baca(KEYT, 25);
+const batasNilai = v => Math.min(28, Math.max(1, Math.floor(Number(v)) || 1));
+if (tutup && typeof tutup === 'object') {
+  const kunci = Object.keys(tutup).find(k => /^\d{4}-\d{2}-\d{2}$/.test(k));
+  tutup = kunci ? Number(kunci.slice(8, 10)) || 25 : 25;
+}
+tutup = batasNilai(tutup);
+
+const pad = n => String(n).padStart(2, '0');
+const NAMA_BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const isoHariIni = () => { const t = new Date(); return t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate()); };
+const diffHari = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+// Periode sebuah tanggal. g = tanggal mulai periode (1 = bulan kalender biasa).
+const periode = (tgl, g) => {
+  let [y, m] = tgl.split('-').map(Number);
+  const d = Number(tgl.slice(8, 10)) || 1;
+  if (d < g) { m--; if (m === 0) { m = 12; y--; } }
+  return y + '-' + pad(m);
+};
+const rentang = (key, g) => {
+  const [y, m] = key.split('-').map(Number);
+  const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+  if (g === 1) return new Date(y, m - 1).toLocaleDateString('id-ID', {month: 'long', year: 'numeric'});
+  return g + ' ' + NAMA_BLN[m - 1] + ' ' + y + ' – ' + (g - 1) + ' ' + NAMA_BLN[nm - 1] + ' ' + ny;
+};
+const batasPeriode = key => {
+  const [y, m] = key.split('-').map(Number);
+  const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+  return {mulai: key + '-' + pad(tutup), akhir: ny + '-' + pad(nm) + '-' + pad(tutup)};
+};
+const geserPeriode = (key, n) => {
+  const [y, m] = key.split('-').map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1);
+};
+
+// Data lama memakai kunci tanggal mulai periode; pindah ke kunci "YYYY-MM".
+Object.keys(pemasukan).forEach(k => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) return;
+  const b = periode(k, tutup);
+  if (pemasukan[b] === undefined) pemasukan[b] = pemasukan[k];
+  delete pemasukan[k];
+});
+
 const simpanCfg = () => { try { localStorage.setItem(KEYC, JSON.stringify(cfg)); } catch (e) {} };
 const setStatus = t => { $('status').textContent = t; };
 const statusDasar = () => setStatus(!cfg.url ? 'Belum tersambung: data hanya ada di perangkat ini.'
@@ -333,9 +406,11 @@ const statusDasar = () => setStatus(!cfg.url ? 'Belum tersambung: data hanya ada
 const terapkan = op => {
   if (op.t === 'add') { if (!data.some(d => d.id === op.e.id)) data.push(op.e); }
   else if (op.t === 'del') data = data.filter(d => d.id !== op.id);
-  else if (op.t === 'delbulan') data = data.filter(d => !d.tgl.startsWith(op.bulan));
+  else if (op.t === 'delbulan') data = data.filter(d => periode(d.tgl, op.g || tutup) !== op.bulan);
   else if (op.t === 'inc') { if (op.jml > 0) pemasukan[op.bulan] = op.jml; else delete pemasukan[op.bulan]; }
   else if (op.t === 'incbila') { if (pemasukan[op.bulan] === undefined && op.jml > 0) pemasukan[op.bulan] = op.jml; }
+  else if (op.t === 'edit') { data = data.map(d => d.id === Number(op.e.id) ? {id: Number(op.e.id), tgl: String(op.e.tgl), kat: String(op.e.kat), ket: String(op.e.ket), jml: Number(op.e.jml)} : d); }
+  else if (op.t === 'tutup') tutup = batasNilai(op.v);
 };
 // Setiap perubahan: tampil langsung, masuk antrian, lalu coba kirim (kalau offline, menunggu)
 const antri = op => { terapkan(op); antrian.push(op); simpan(); tampil(); sinkron(); };
@@ -355,6 +430,7 @@ async function sinkron() {
     } else {
       antrian = antrian.slice(kirim.length);
       data = j.data; pemasukan = j.pemasukan;
+      if (j.tutup && j.tutup !== tutup) { tutup = batasNilai(j.tutup); $('bulan').value = periode(isoHariIni(), tutup); }
       antrian.forEach(terapkan); // perubahan yang dibuat saat proses kirim berlangsung
       simpan(); tampil();
       setStatus('Tersinkron ' + new Date().toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}) + (antrian.length ? ' (' + antrian.length + ' menunggu)' : ''));
@@ -367,27 +443,53 @@ async function sinkron() {
   if (ulang) { ulang = false; sinkron(); }
 }
 
-const hariIni = new Date();
-const pad = n => String(n).padStart(2, '0');
-$('bulan').value = hariIni.getFullYear() + '-' + pad(hariIni.getMonth() + 1);
-$('tgl').value = $('bulan').value + '-' + pad(hariIni.getDate());
+$('bulan').value = periode(isoHariIni(), tutup);
+$('tgl').value = isoHariIni();
 
 const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let filterKat = '';
 let halaman = 1, jumlahHalaman = 1;
+let editId = 0, undoOp = null;
+
+function setUndo(pesan, op) {
+  undoOp = op;
+  $('undoPesan').textContent = pesan;
+  $('undo').hidden = false;
+}
+
+function resetEdit() {
+  editId = 0;
+  $('ket').value = ''; $('jml').value = '';
+  $('btnTambah').textContent = 'Tambah';
+  $('batalEdit').hidden = true;
+}
+
+function mulaiEdit(id) {
+  const d = data.find(x => x.id === id);
+  if (!d) return;
+  editId = id;
+  $('bulan').value = periode(d.tgl, tutup);
+  $('tgl').value = d.tgl;
+  $('kat').value = d.kat;
+  $('ket').value = d.ket;
+  $('jml').value = d.jml;
+  $('btnTambah').textContent = 'Simpan perubahan';
+  $('batalEdit').hidden = false;
+  $('ket').focus();
+  halaman = 1;
+  tampil();
+}
 const ringkasan = () => {
   const b = $('bulan').value;
   const masuk = pemasukan[b] || 0;
-  const keluar = data.filter(d => d.tgl.startsWith(b)).reduce((s, d) => s + d.jml, 0);
+  const keluar = data.filter(d => periode(d.tgl, tutup) === b).reduce((s, d) => s + d.jml, 0);
   const sisa = masuk - keluar;
-  const [th, bl] = b.split('-');
-  const prevD = new Date(+th, +bl - 2, 1);
-  const prev = prevD.getFullYear() + '-' + pad(prevD.getMonth() + 1);
-  const prevKeluar = data.filter(d => d.tgl.startsWith(prev)).reduce((a, d) => a + d.jml, 0);
+  const prev = geserPeriode(b, -1);
+  const prevKeluar = data.filter(d => periode(d.tgl, tutup) === prev).reduce((a, d) => a + d.jml, 0);
   const delta = prevKeluar ? (keluar - prevKeluar) / prevKeluar * 100 : 0;
   $('deltaKeluar').textContent = prevKeluar
-    ? (delta >= 0 ? '+' : '\u2212') + Math.abs(delta).toFixed(1) + '% vs bulan lalu'
-    : 'Data bulan lalu belum ada';
+    ? (delta >= 0 ? '+' : '\u2212') + Math.abs(delta).toFixed(1) + '% vs periode lalu'
+    : 'Data periode lalu belum ada';
   $('deltaKeluar').className = 'ket ' + (!prevKeluar ? '' : delta > 0 ? 'neg' : delta < 0 ? 'pos' : '');
   $('total').textContent = rp(keluar);
   $('sisa').textContent = rp(sisa);
@@ -397,20 +499,20 @@ const ringkasan = () => {
   $('variansi').textContent = masuk ? 'Variansi ' + rp(sisa) + (sisa < 0 ? ' · over budget' : ' · Within budget') : 'Belum ada anggaran';
   $('variansi').className = 'ket ' + (sisa < 0 ? 'neg' : pakai > 90 ? 'warn' : 'pos');
   $('pendapatanKet').textContent = masuk ? 'Total dana tersedia' : 'Isi manual untuk analisis';
-  const kini = hariIni.getFullYear() + '-' + pad(hariIni.getMonth() + 1);
-  const hari = b === kini ? hariIni.getDate() : new Date(+th, +bl, 0).getDate();
-  $('rata').textContent = rp(keluar / hari);
+  const {mulai, akhir} = batasPeriode(b);
+  const hariStr = isoHariIni();
+  const hari = periode(hariStr, tutup) === b ? Math.min(diffHari(mulai, hariStr) + 1, diffHari(mulai, akhir)) : diffHari(mulai, akhir);
+  $('rata').textContent = rp(keluar / Math.max(hari, 1));
 };
 
 function gambarTren() {
   const b = $('bulan').value;
-  const [th, bl] = b.split('-');
-  const bulan = Array.from({length: 6}, (_, i) => {
-    const d = new Date(+th, +bl - 6 + i, 1);
-    return {k: d.getFullYear() + '-' + pad(d.getMonth() + 1), n: d.toLocaleDateString('id-ID', {month: 'short'})};
+  const daftar = Array.from({length: 6}, (_, i) => {
+    const k = geserPeriode(b, i - 5);
+    return {k: k, n: new Date(k + '-01T00:00:00').toLocaleDateString('id-ID', {month: 'short', year: '2-digit'})};
   });
-  const kel = bulan.map(x => data.filter(d => d.tgl.startsWith(x.k)).reduce((a, d) => a + d.jml, 0));
-  const mas = bulan.map(x => pemasukan[x.k] || 0);
+  const kel = daftar.map(x => data.filter(d => periode(d.tgl, tutup) === x.k).reduce((a, d) => a + d.jml, 0));
+  const mas = daftar.map(x => pemasukan[x.k] || 0);
   const max = Math.max(...kel, ...mas, 1);
   const y = v => 160 - v / max * 120;
   const xyKel = kel.map((v, i) => [40 + i * 100, y(v)]);
@@ -418,8 +520,8 @@ function gambarTren() {
   const ptsKel = xyKel.map(p => p.join(',')).join(' ');
   const ptsMas = xyMas.map(p => p.join(',')).join(' ');
   const area = 'M' + xyKel[0][0] + ' ' + xyKel[0][1] + ' ' + xyKel.slice(1).map(p => 'L' + p[0] + ' ' + p[1]).join(' ') + ' L540 160 L40 160 Z';
-  const titik = (xy, v, cls) => xy.map((p, i) => '<circle class="titik ' + cls + (i === 5 ? ' aktif' : '') + '" cx="' + p[0] + '" cy="' + p[1] + '" r="3.5"><title>' + bulan[i].n + ': ' + rp(v[i]) + '</title></circle>').join('');
-  $('tren').innerHTML = '<desc id="trenDesc">Perbandingan pendapatan dan pengeluaran enam bulan terakhir.</desc>'
+  const titik = (xy, v, cls) => xy.map((p, i) => '<circle class="titik ' + cls + (i === 5 ? ' aktif' : '') + '" cx="' + p[0] + '" cy="' + p[1] + '" r="3.5"><title>' + daftar[i].n + ': ' + rp(v[i]) + '</title></circle>').join('');
+  $('tren').innerHTML = '<desc id="trenDesc">Perbandingan pendapatan dan pengeluaran enam periode terakhir.</desc>'
     + '<line class="gridline" x1="40" y1="40" x2="560" y2="40"></line>'
     + '<line class="gridline" x1="40" y1="100" x2="560" y2="100"></line>'
     + '<line class="gridline" x1="40" y1="160" x2="560" y2="160"></line>'
@@ -427,14 +529,13 @@ function gambarTren() {
     + '<polyline class="line mas" points="' + ptsMas + '"></polyline>'
     + '<polyline class="line kel" points="' + ptsKel + '"></polyline>'
     + titik(xyMas, mas, 'mas') + titik(xyKel, kel, 'kel')
-    + bulan.map((x, i) => '<text x="' + (40 + i * 100) + '" y="182" text-anchor="middle">' + x.n + '</text>').join('');
-  $('trenData').innerHTML = bulan.map((x, i) => '<tr><td>' + x.k + '</td><td class="num">' + rp(mas[i]) + '</td><td class="num">' + rp(kel[i]) + '</td></tr>').join('');
+    + daftar.map((x, i) => '<text x="' + (40 + i * 100) + '" y="182" text-anchor="middle">' + x.n + '</text>').join('');
+  $('trenData').innerHTML = daftar.map((x, i) => '<tr><td>' + rentang(x.k, tutup) + '</td><td class="num">' + rp(mas[i]) + '</td><td class="num">' + rp(kel[i]) + '</td></tr>').join('');
 }
 const tampil = () => {
   const b = $('bulan').value;
-  const rows = data.filter(d => d.tgl.startsWith(b)).sort((a, z) => a.tgl.localeCompare(z.tgl));
-  const [th, bl] = b.split('-');
-  $('bulanLabel').textContent = new Date(th, bl - 1).toLocaleDateString('id-ID', {month:'long', year:'numeric'});
+  const rows = data.filter(d => periode(d.tgl, tutup) === b).sort((a, z) => a.tgl.localeCompare(z.tgl));
+  $('bulanLabel').textContent = rentang(b, tutup);
   if (document.activeElement !== $('masuk')) $('masuk').value = pemasukan[b] || '';
   ringkasan();
 
@@ -444,7 +545,7 @@ const tampil = () => {
   $('katBars').innerHTML = Object.entries(per).sort((a, z) => z[1] - a[1]).map(([k, v]) => {
     const pct = totalKeluar ? Math.round(v / totalKeluar * 100) : 0;
     return '<li><div class="row"><span>' + esc(k) + '</span><span class="jumlah">' + rp(v) + ' · ' + pct + '%</span></div><div class="bar" role="img" aria-label="' + esc(k) + ' ' + pct + ' persen"><span style="width:' + pct + '%"></span></div></li>';
-  }).join('') || '<li class="kosong">Belum ada pengeluaran bulan ini.</li>';
+  }).join('') || '<li class="kosong">Belum ada pengeluaran periode ini.</li>';
   gambarTren();
   if (filterKat && !per[filterKat]) filterKat = '';
   const chip = (k, t, aktif) => `<button type="button" class="chip${aktif ? ' on' : ''}" data-kat="${esc(k)}" aria-pressed="${aktif}">${t}</button>`;
@@ -453,8 +554,8 @@ const tampil = () => {
   const tampilRows = filterKat ? rows.filter(d => d.kat === filterKat) : rows;
   jumlahHalaman = Math.max(1, Math.ceil(tampilRows.length / 15));
   if (halaman > jumlahHalaman) halaman = jumlahHalaman;
-  const mulai = (halaman - 1) * 15;
-  const barisHal = tampilRows.slice(mulai, mulai + 15);
+  const offset = (halaman - 1) * 15;
+  const barisHal = tampilRows.slice(offset, offset + 15);
   $('info').textContent = (filterKat ? `${filterKat}: ${tampilRows.length} catatan, total ${rp(per[filterKat])}` : '')
     + (jumlahHalaman > 1 ? `Halaman ${halaman} dari ${jumlahHalaman} · 15 per halaman` : '');
 
@@ -462,8 +563,8 @@ const tampil = () => {
     <td>${new Date(d.tgl).toLocaleDateString('id-ID', {day:'numeric', month:'short'})}</td>
     <td>${esc(d.kat)}</td><td>${esc(d.ket)}</td>
     <td class="num">${rp(d.jml)}</td>
-    <td><button data-id="${d.id}" aria-label="Hapus ${esc(d.ket)}">Hapus</button></td></tr>`).join('')
-    : '<tr><td colspan="5" class="empty">Belum ada pengeluaran bulan ini. Isi form di atas untuk menambah.</td></tr>';
+    <td><button data-edit="${d.id}" aria-label="Ubah ${esc(d.ket)}">Ubah</button> <button data-id="${d.id}" aria-label="Hapus ${esc(d.ket)}">Hapus</button></td></tr>`).join('')
+    : '<tr><td colspan="5" class="empty">Belum ada pengeluaran periode ini. Isi form di atas untuk menambah.</td></tr>';
   const totalTampil = tampilRows.reduce((a, d) => a + d.jml, 0);
   $('totalBaris').innerHTML = '<tr><td colspan="3">Total · ' + tampilRows.length + ' catatan</td><td class="num">' + rp(totalTampil) + '</td><td></td></tr>';
   $('halaman').innerHTML = jumlahHalaman < 2 ? ''
@@ -474,26 +575,44 @@ const tampil = () => {
 
 $('form').addEventListener('submit', e => {
   e.preventDefault();
-  const baru = {id: Date.now(), tgl: $('tgl').value, kat: $('kat').value, ket: $('ket').value.trim(), jml: Number($('jml').value)};
-  $('bulan').value = $('tgl').value.slice(0, 7);
-  $('ket').value = ''; $('jml').value = ''; $('ket').focus();
-  antri({t: 'add', e: baru});
+  const lama = editId ? data.find(x => x.id === editId) : null;
+  const baru = {id: editId || Date.now(), tgl: $('tgl').value, kat: $('kat').value, ket: $('ket').value.trim(), jml: Number($('jml').value)};
+  const bBaru = periode(baru.tgl, tutup);
+  $('bulan').value = bBaru;
+  const n = data.filter(d => periode(d.tgl, tutup) === bBaru).length + (editId ? 0 : 1);
+  halaman = editId ? 1 : Math.max(1, Math.ceil(n / 15));
+  if (editId) {
+    antri({t: 'edit', e: baru});
+    if (lama) setUndo('Perubahan disimpan', {t: 'edit', e: {...lama}});
+  } else {
+    antri({t: 'add', e: baru});
+    setUndo('Catatan ditambah', {t: 'del', id: baru.id});
+  }
+  resetEdit();
+  $('ket').focus();
 });
+$('batalEdit').addEventListener('click', () => { resetEdit(); $('ket').focus(); });
 $('isi').addEventListener('click', e => {
+  const ubah = e.target.dataset.edit;
+  if (ubah) { mulaiEdit(Number(ubah)); return; }
   const id = e.target.dataset.id;
   if (!id) return;
+  const lama = data.find(x => x.id === Number(id));
   antri({t: 'del', id: Number(id)});
+  if (lama) setUndo('Catatan dihapus', {t: 'add', e: {...lama}});
 });
-const geserBulan = n => {
-  const [t, b] = $('bulan').value.split('-').map(Number);
-  const d = new Date(t, b - 1 + n, 1);
-  $('bulan').value = d.getFullYear() + '-' + pad(d.getMonth() + 1);
+const pindahPeriode = n => {
+  $('bulan').value = geserPeriode($('bulan').value, n);
   halaman = 1;
   tampil();
 };
-$('bulanSebelum').addEventListener('click', () => geserBulan(-1));
-$('bulanDepan').addEventListener('click', () => geserBulan(1));
-$('bulan').addEventListener('change', () => { halaman = 1; tampil(); });
+$('bulanSebelum').addEventListener('click', () => pindahPeriode(-1));
+$('bulanDepan').addEventListener('click', () => pindahPeriode(1));
+$('bulan').addEventListener('change', () => {
+  if (!/^\d{4}-\d{2}$/.test($('bulan').value)) $('bulan').value = periode(isoHariIni(), tutup);
+  halaman = 1;
+  tampil();
+});
 $('halaman').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b || b.disabled) return;
@@ -509,6 +628,25 @@ $('cats').addEventListener('click', e => {
   halaman = 1;
   tampil();
 });
+const batas = () => batasNilai($('gTgl').value);
+const contohTutup = () => { const g = batas(); $('contohPeriode').textContent = 'Periode saat ini: ' + rentang(periode(isoHariIni(), g), g); };
+$('btnTutup').addEventListener('click', () => { $('gTgl').value = tutup; contohTutup(); $('dtutup').showModal(); });
+$('gTgl').addEventListener('input', contohTutup);
+$('ftutup').addEventListener('submit', e => {
+  if (!e.submitter || e.submitter.value !== 'simpan') return;
+  const g = batas(), lama = tutup;
+  $('bulan').value = periode(isoHariIni(), g);
+  antri({t: 'tutup', v: g});
+  setUndo('Periode diubah', {t: 'tutup', v: lama});
+});
+$('undoBtn').addEventListener('click', () => {
+  if (!undoOp) return;
+  const op = undoOp;
+  undoOp = null;
+  $('undo').hidden = true;
+  antri(op);
+});
+$('undoTutup').addEventListener('click', () => { undoOp = null; $('undo').hidden = true; });
 $('masuk').addEventListener('input', () => {
   pemasukan[$('bulan').value] = Math.max(0, Number($('masuk').value) || 0);
   simpan(); ringkasan();
@@ -517,13 +655,13 @@ $('masuk').addEventListener('change', () => {
   antri({t: 'inc', bulan: $('bulan').value, jml: Math.max(0, Number($('masuk').value) || 0)});
 });
 $('hapus').addEventListener('click', () => {
-  if (!confirm('Hapus semua pengeluaran di bulan ini?')) return;
-  antri({t: 'delbulan', bulan: $('bulan').value});
+  if (!confirm('Hapus semua pengeluaran di periode ini?')) return;
+  antri({t: 'delbulan', bulan: $('bulan').value, g: tutup});
 });
 $('csv').addEventListener('click', () => {
   const b = $('bulan').value;
   const q = s => '"' + String(s).replace(/"/g, '""') + '"';
-  const rows = data.filter(d => d.tgl.startsWith(b)).sort((a, z) => a.tgl.localeCompare(z.tgl));
+  const rows = data.filter(d => periode(d.tgl, tutup) === b).sort((a, z) => a.tgl.localeCompare(z.tgl));
   const masuk = pemasukan[b] || 0;
   const keluar = rows.reduce((s, d) => s + d.jml, 0);
   const baris = ['Tanggal,Kategori,Keterangan,Jumlah']
@@ -548,6 +686,7 @@ $('fsync').addEventListener('submit', e => {
   // Kirim data yang sudah ada di HP ini (aman diulang: data yang sama tidak akan dobel)
   data.forEach(d => antrian.push({t: 'add', e: d}));
   Object.keys(pemasukan).forEach(b => antrian.push({t: 'incbila', bulan: b, jml: pemasukan[b]}));
+  if (tutup !== 1) antrian.push({t: 'tutupbila', v: tutup});
   simpan(); sinkron();
 });
 $('putus').addEventListener('click', () => {
