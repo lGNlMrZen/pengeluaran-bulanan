@@ -1,4 +1,4 @@
-const CACHE = 'pengeluaran-v10';
+const CACHE = 'pengeluaran-v11';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
